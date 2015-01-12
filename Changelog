@@ -1,3 +1,4 @@
+v 0.4 Fix k2_u support, add k2_cl support.
+v 0.3 Fix some diagnostics, add footer.
 v 0.2 Support for k2_u
-
 v 0.1 Initial version.
