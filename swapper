@@ -17,7 +17,7 @@ emmc_get_part(){
 }
 
 check_boot(){
-	BOOT_FSTAB=""
+	local BOOT_FSTAB
 	for MODEL in k2_ul k2_u k2_cl k2_plc_cl;do
 		if [ -e "$1/fstab.$MODEL" ];then
 			BOOT_FSTAB="/fstab.$MODEL"
@@ -76,6 +76,12 @@ check_system(){
 
 patch_boot(){
 	FLASH_BOOT=1
+	local BOOT_FSTAB
+	for MODEL in k2_ul k2_u k2_cl k2_plc_cl;do
+		if [ -e "boot/initrd/fstab.$MODEL" ];then
+			BOOT_FSTAB="/fstab.$MODEL"
+		fi
+	done
 	if [ "$BOOT_STATE" = "D_I_MOD" -a \( "$TARGET_STATE" = "STOCK" -o "$TARGET_STATE" = "I_E_MOD" \) ];then
 		sed -i -e 's/^\([ \t]*devwait emmc@\)fat$/\1userdata/' \
 			-e 's#^\([ \t]*\)mount ext4 emmc@fat /data .*#\1mount_all '$BOOT_FSTAB'#' \
