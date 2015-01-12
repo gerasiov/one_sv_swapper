@@ -28,9 +28,10 @@ emmc_get_part(){
 check_boot(){
 	(
 		local STATE
+		FSTAB="/fstab.$(getprop ro.hardware)"
 		cd $1
 		grep -q '^[ \t]*devwait emmc@userdata$' init.target.rc && \
-			grep -q '^[ \t]*mount_all /fstab.k2_ul$' init.target.rc && \
+			grep -q '^[ \t]*mount_all '$FSTAB'$' init.target.rc && \
 			STATE="STOCK"
 		grep -q '^[ \t]*devwait emmc@fat$' init.target.rc && \
 			grep -q '^[ \t]*mount ext4 emmc@fat' init.target.rc && \
@@ -79,13 +80,14 @@ check_system(){
 
 patch_boot(){
 	FLASH_BOOT=1
+	FSTAB="/fstab.$(getprop ro.hardware)"
 	if [ "$BOOT_STATE" = "D_I_MOD" -a \( "$TARGET_STATE" = "STOCK" -o "$TARGET_STATE" = "I_E_MOD" \) ];then
 		sed -i -e 's/^\([ \t]*devwait emmc@\)fat$/\1userdata/' \
-			-e 's#^\([ \t]*\)mount ext4 emmc@fat /data .*#\1mount_all /fstab.k2_ul#' \
+			-e 's#^\([ \t]*\)mount ext4 emmc@fat /data .*#\1mount_all '$FSTAB'#' \
 			boot/initrd/init.target.rc
 	elif [ "$BOOT_STATE" = "STOCK" -a \( "$TARGET_STATE" = "D_I_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" \) ];then
 		sed -i -e 's/^\([ \t]*devwait emmc@\)userdata$/\1fat/' \
-			-e 's#^\([ \t]*\)mount_all /fstab.k2_ul$#\1mount ext4 emmc@fat /data noatime nosuid nodev noauto_da_alloc discard#' \
+			-e 's#^\([ \t]*\)mount_all '$FSTAB'$#\1mount ext4 emmc@fat /data noatime nosuid nodev noauto_da_alloc discard#' \
 			boot/initrd/init.target.rc
 	else
 		FLASH_BOOT=0
