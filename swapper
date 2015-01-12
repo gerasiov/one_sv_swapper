@@ -197,7 +197,7 @@ write_system(){
 	cp vold.fstab /system/etc/
 }
 
-TARGET_STATE="${1:-STOCK}"
+TARGET_STATE="${1:-READONLY}"
 
 print_header
 
