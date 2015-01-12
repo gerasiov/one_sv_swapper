@@ -2,22 +2,14 @@
 # HTC One SV partition swapper
 # (c) 2015 Alexander GQ Gerasiov <gq@cs.msu.su>
 # License GPL v2 or later.
-# Version 0.2
+# Version 0.3
+VERSION="0.3"
 set -e
 
-TARGET_STATE="${1:-STOCK}"
-
-case "$TARGET_STATE" in
-	STOCK)		;;
-	D_I_MOD)	;;
-	I_E_MOD)	;;
-	D_I_E_MOD)	;;
-	*)		echo "Fatal error: unknown target state."
-			exit 1
-			;;
-esac
-
-rm -rf boot recovery
+print_header(){
+	echo "HTC One SV partition swapper by Alexander GQ Gerasiov."
+	echo "Version: $VERSION, target state: $TARGET_STATE."
+}
 
 emmc_get_part(){
 	local PART=$(awk '{if ($4=="\"'$1'\"") {gsub(/^mmcblk0p/, "", $1); gsub(/:$/, "", $1); print $1;}}' < /proc/emmc)
@@ -27,7 +19,7 @@ emmc_get_part(){
 
 check_boot(){
 	(
-		local STATE
+		local STATE="UNKNOWN"
 		FSTAB="/fstab.$(getprop ro.hardware)"
 		cd $1
 		grep -q '^[ \t]*devwait emmc@userdata$' init.target.rc && \
@@ -43,7 +35,7 @@ check_boot(){
 
 check_recovery(){
 	(
-		local STATE
+		local STATE="UNKNOWN"
 		cd $1
 		grep -q '^[ \t]*/data[ \t]\+ext4[ \t]\+/dev/block/mmcblk0p'$EMMC_USERDATA'$' etc/recovery.fstab && \
 			grep -q '^[ \t]*/int_sd[ \t]\+vfat[ \t]\+/dev/block/mmcblk0p'$EMMC_FAT'$' etc/recovery.fstab && \
@@ -59,7 +51,7 @@ check_recovery(){
 check_system(){
 	mount /system 2>/dev/null || true
 	(
-		local STATE
+		local STATE="UNKNOWN"
 		grep -q '^dev_mount sdcard /storage/sdcard0 emmc /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
 			grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
 			STATE="STOCK"
@@ -147,7 +139,7 @@ extract_boot(){
 		mkdir boot
 		cd boot
 		if ! ../abootimg -x /dev/block/mmcblk0p$EMMC_BOOT;then
-			echo "Possible stock signed boot, lets strip it."
+			echo "Possible stock signed boot, stripping signature..."
 			dd if=/dev/block/mmcblk0p$EMMC_BOOT of=boot.img bs=256 skip=1
 			../abootimg -x boot.img
 		fi
@@ -195,6 +187,22 @@ write_system(){
 	echo "Updating system..."
 	cp vold.fstab /system/etc/
 }
+
+TARGET_STATE="${1:-STOCK}"
+
+print_header
+
+case "$TARGET_STATE" in
+	STOCK)		;;
+	D_I_MOD)	;;
+	I_E_MOD)	;;
+	D_I_E_MOD)	;;
+	*)		echo "Fatal error: unknown target state."
+			exit 1
+			;;
+esac
+
+rm -rf boot recovery
 
 EMMC_USERDATA=$(emmc_get_part userdata)
 EMMC_FAT=$(emmc_get_part fat)
