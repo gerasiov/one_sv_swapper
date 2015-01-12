@@ -18,7 +18,7 @@ emmc_get_part(){
 
 check_boot(){
 	BOOT_FSTAB=""
-	for MODEL in k2_ul k2_u k2_cl;do
+	for MODEL in k2_ul k2_u k2_cl k2_plc_cl;do
 		if [ -e "$1/fstab.$MODEL" ];then
 			BOOT_FSTAB="/fstab.$MODEL"
 		fi
