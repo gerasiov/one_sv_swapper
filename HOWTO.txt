@@ -1,0 +1,3 @@
+adb push swapper /tmp  
+adb push abootimg /tmp  
+adb shell "cd /tmp&&chmod 755 *&&./swapper STOCK"

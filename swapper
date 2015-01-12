@@ -1,0 +1,262 @@
+#!/sbin/sh
+# HTC One SV partition swapper
+# (c) 2015 Alexander GQ Gerasiov <gq@cs.msu.su>
+# License GPL v2 or later.
+# Version 0.1
+set -e
+
+TARGET_STATE="${1:-STOCK}"
+
+case "$TARGET_STATE" in
+	STOCK)		;;
+	D_I_MOD)	;;
+	I_E_MOD)	;;
+	D_I_E_MOD)	;;
+	*)		echo "Fatal error: unknown target state."
+			exit 1
+			;;
+esac
+
+rm -rf boot recovery
+
+emmc_get_part(){
+	local PART=$(awk '{if ($4=="\"'$1'\"") {gsub(/^mmcblk0p/, "", $1); gsub(/:$/, "", $1); print $1;}}' < /proc/emmc)
+	test -n "$PART"||return 1
+	echo "$PART"
+}
+
+check_boot(){
+	(
+		local STATE
+		cd $1
+		grep -q '^[ \t]*devwait emmc@userdata$' init.target.rc && \
+			grep -q '^[ \t]*mount_all /fstab.k2_ul$' init.target.rc && \
+			STATE="STOCK"
+		grep -q '^[ \t]*devwait emmc@fat$' init.target.rc && \
+			grep -q '^[ \t]*mount ext4 emmc@fat' init.target.rc && \
+			STATE="D_I_MOD"
+		echo $STATE
+	)
+	return 0
+}
+
+check_recovery(){
+	(
+		local STATE
+		cd $1
+		grep -q '^[ \t]*/data[ \t]\+ext4[ \t]\+/dev/block/mmcblk0p'$EMMC_USERDATA'$' etc/recovery.fstab && \
+			grep -q '^[ \t]*/int_sd[ \t]\+vfat[ \t]\+/dev/block/mmcblk0p'$EMMC_FAT'$' etc/recovery.fstab && \
+			STATE="STOCK"
+		grep -q '^[ \t]*/data[ \t]\+ext4[ \t]\+/dev/block/mmcblk0p'$EMMC_FAT'$' etc/recovery.fstab && \
+			grep -q '^[ \t]*/int_sd[ \t]\+vfat[ \t]\+/dev/block/mmcblk0p'$EMMC_USERDATA'$' etc/recovery.fstab && \
+			STATE="D_I_MOD"
+		echo $STATE
+	)
+	return 0
+}
+
+check_system(){
+	mount /system 2>/dev/null || true
+	(
+		local STATE
+		grep -q '^dev_mount sdcard /storage/sdcard0 emmc /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
+			grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
+			STATE="STOCK"
+		grep -q '^dev_mount sdcard /storage/sdcard0 35 /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
+			grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
+			STATE="D_I_MOD"
+		grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd emmc /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
+			grep -q '^dev_mount sdcard /storage/sdcard0 auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
+			STATE="I_E_MOD"
+		grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd 35 /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
+			grep -q '^dev_mount sdcard /storage/sdcard0 auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
+			STATE="D_I_E_MOD"
+
+		echo $STATE
+	)
+	return 0
+}
+
+patch_boot(){
+	FLASH_BOOT=1
+	if [ "$BOOT_STATE" = "D_I_MOD" -a \( "$TARGET_STATE" = "STOCK" -o "$TARGET_STATE" = "I_E_MOD" \) ];then
+		sed -i -e 's/^\([ \t]*devwait emmc@\)fat$/\1userdata/' \
+			-e 's#^\([ \t]*\)mount ext4 emmc@fat /data .*#\1mount_all /fstab.k2_ul#' \
+			boot/initrd/init.target.rc
+	elif [ "$BOOT_STATE" = "STOCK" -a \( "$TARGET_STATE" = "D_I_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" \) ];then
+		sed -i -e 's/^\([ \t]*devwait emmc@\)userdata$/\1fat/' \
+			-e 's#^\([ \t]*\)mount_all /fstab.k2_ul$#\1mount ext4 emmc@fat /data noatime nosuid nodev noauto_da_alloc discard#' \
+			boot/initrd/init.target.rc
+	else
+		FLASH_BOOT=0
+	fi
+}
+
+patch_recovery(){
+	if [  "$TARGET_STATE" = "STOCK" -o "$TARGET_STATE" = "I_E_MOD" ];then
+		sed -i -e 's#^\([ \t]*/data[ \t]\+ext4[ \t]\+/dev/block/mmcblk0p\).*$#\1'$EMMC_USERDATA'#' \
+			-e 's#^\([ \t]*/int_sd[ \t]\+vfat[ \t]\+/dev/block/mmcblk0p\).*$#\1'$EMMC_FAT'#' \
+			recovery/initrd/etc/recovery.fstab
+	elif [ "$TARGET_STATE" = "D_I_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" ];then
+		sed -i -e 's#^\([ \t]*/data[ \t]\+ext4[ \t]\+/dev/block/mmcblk0p\).*$#\1'$EMMC_FAT'#' \
+			-e 's#^\([ \t]*/int_sd[ \t]\+vfat[ \t]\+/dev/block/mmcblk0p\).*$#\1'$EMMC_USERDATA'#' \
+			recovery/initrd/etc/recovery.fstab
+	fi
+}
+
+patch_system(){
+	cp /system/etc/vold.fstab .
+	if [  "$TARGET_STATE" = "D_I_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" ];then
+		sed -i -e 's# emmc \(/devices/platform/msm_sdcc.1/mmc_host\)$# 35 \1#' vold.fstab
+	else
+		sed -i -e 's# 35 \(/devices/platform/msm_sdcc.1/mmc_host\)$# emmc \1#' vold.fstab
+	fi
+
+	if [  "$TARGET_STATE" = "I_E_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" ];then
+		sed -i -e 's#^\(dev_mount\) .* \(35\|emmc\) \(/devices/platform/msm_sdcc.1/mmc_host\)$#\1 sdcard2 /storage/sdcard0/ext_sd \2 \3#' \
+			-e 's#^\(dev_mount\) .* \(auto /devices/platform/msm_sdcc.3/mmc_host\)$#\1 sdcard /storage/sdcard0 \2#' \
+			vold.fstab
+	else
+		sed -i -e 's#^\(dev_mount\) .* \(35\|emmc\) \(/devices/platform/msm_sdcc.1/mmc_host\)$#\1 sdcard /storage/sdcard0 \2 \3#' \
+			-e 's#^\(dev_mount\) .* \(auto /devices/platform/msm_sdcc.3/mmc_host\)$#\1 sdcard2 /storage/sdcard0/ext_sd \2#' \
+			vold.fstab
+	fi
+}
+
+format_flash(){
+	umount /int_sd 2>/dev/null||true
+	umount /data 2>/dev/null||true
+	umount /and-sec 2>/dev/null||true
+	if [ \( "$BOOT_STATE" = "STOCK" -o "$BOOT_STATE" = "I_E_MOD" \) -a \( "$TARGET_STATE" = "D_I_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" \) ];then
+		mkdosfs /dev/block/mmcblk0p$EMMC_USERDATA
+		mke2fs -t ext4 -O ^huge_file,^dir_nlink,^ext_attr,^resize_inode,^extra_isize -m 0 /dev/block/mmcblk0p$EMMC_FAT
+		tune2fs -E hash_alg=tea -i0 -c-1 -m0  -e remount-ro /dev/block/mmcblk0p$EMMC_FAT
+	elif [ \( "$TARGET_STATE" = "STOCK" -o "$TARGET_STATE" = "I_E_MOD" \) -a "$BOOT_STATE" = "D_I_MOD" ];then
+		mkdosfs /dev/block/mmcblk0p$EMMC_FAT
+		mke2fs -t ext4 -O ^huge_file,^dir_nlink,^ext_attr,^resize_inode,^extra_isize -m 0 /dev/block/mmcblk0p$EMMC_USERDATA
+		tune2fs -E hash_alg=tea -i0 -c-1 -m0  -e remount-ro /dev/block/mmcblk0p$EMMC_USERDATA
+	fi
+
+}
+
+extract_boot(){
+	echo "Extracting boot..."
+	(
+		mkdir boot
+		cd boot
+		if ! ../abootimg -x /dev/block/mmcblk0p$EMMC_BOOT;then
+			echo "Possible stock signed boot, lets strip it."
+			dd if=/dev/block/mmcblk0p$EMMC_BOOT of=boot.img bs=256 skip=1
+			../abootimg -x boot.img
+		fi
+	)
+}
+
+extract_recovery(){
+	echo "Extracting recovery..."
+	(
+		mkdir recovery
+		cd recovery
+		../abootimg -x /dev/block/mmcblk0p$EMMC_RECOVERY
+	)
+}
+
+unpack_initrd(){
+	echo "Extracting $1:initrd..."
+	(
+		mkdir $1/initrd
+		cd $1/initrd
+		zcat ../initrd.img | cpio -i
+	)
+}
+
+pack_initrd(){
+	echo "Creating $1:initrd.img..."
+	(
+		cd $1/initrd
+	find | sort | cpio --quiet -o -H newc | gzip -9 > ../initrd.img
+	)
+}
+
+write_image(){
+	echo "Writing image to $1..."
+	if ! [ -e $1/$1.img ];then
+		./abootimg -u /dev/block/mmcblk0p$(emmc_get_part $1) -r $1/initrd.img
+	else
+		./abootimg -u $1/$1.img -r $1/initrd.img 
+		dd if=$1/$1.img of=/dev/block/mmcblk0p$(emmc_get_part $1) bs=256
+	fi
+
+}
+
+write_system(){
+	echo "Updating system..."
+	cp vold.fstab /system/etc/
+}
+
+EMMC_USERDATA=$(emmc_get_part userdata)
+EMMC_FAT=$(emmc_get_part fat)
+
+EMMC_BOOT=$(emmc_get_part boot)
+EMMC_RECOVERY=$(emmc_get_part recovery)
+
+
+echo "Emmc partitions: recovery=$EMMC_RECOVERY boot=$EMMC_BOOT userdata=$EMMC_USERDATA fat=$EMMC_FAT"
+
+extract_boot
+unpack_initrd boot
+
+extract_recovery
+unpack_initrd recovery
+
+echo "Checking current state..."
+
+BOOT_STATE=$(check_boot boot/initrd)
+RECOVERY_STATE=$(check_recovery recovery/initrd)
+SYSTEM_STATE=$(check_system)
+
+echo "States: boot: $BOOT_STATE, recovery: $RECOVERY_STATE, system: $SYSTEM_STATE"
+
+if [ "$BOOT_STATE" = "STOCK" -a "$RECOVERY_STATE" = "STOCK" -a "$SYSTEM_STATE" = "STOCK" ];then
+	if [ "$TARGET_STATE" = "STOCK" ];then
+		echo "Nothing to do, already applied."
+		exit 0
+	fi
+elif [ "$BOOT_STATE"="STOCK" -a "$RECOVERY_STATE" = "STOCK" -a "$SYSTEM_STATE" = "I_E_MOD" ];then
+	if [ "$TARGET_STATE" = "I_E_MOD" ];then
+		echo "Nothing to do, already applied."
+		exit 0
+	fi
+elif [ "$BOOT_STATE" = "D_I_MOD" -a "$RECOVERY_STATE" = "D_I_MOD" -a "$SYSTEM_STATE" = "D_I_MOD" ];then
+	if [ "$TARGET_STATE" = "D_I_MOD" ];then
+		echo "Nothing to do, already applied."
+		exit 0
+	fi
+elif [ "$BOOT_STATE" = "D_I_MOD" -a "$RECOVERY_STATE" = "D_I_MOD" -a "$SYSTEM_STATE" = "D_I_E_MOD" ];then
+	if [ "$TARGET_STATE" = "D_I_E_MOD" ];then
+		echo "Nothing to do, already applied."
+		exit 0
+	fi
+else
+	echo "Fatal error: Current state is unknown, nothing changed, aborting."
+	exit 1
+fi
+
+echo "Patching..."
+patch_boot boot/initrd
+patch_recovery recovery/initrd
+patch_system
+
+pack_initrd boot
+pack_initrd recovery
+
+echo "Writing images..."
+test $FLASH_BOOT -ne 1||write_image boot
+write_image recovery
+write_system
+
+echo "Formating flash..."
+format_flash
+
+echo "Everything is done."
+echo "Do not forget to reboot prior backup restore."
