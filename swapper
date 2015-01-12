@@ -2,7 +2,7 @@
 # HTC One SV partition swapper
 # (c) 2015 Alexander GQ Gerasiov <gq@cs.msu.su>
 # License GPL v2 or later.
-# Version 0.1
+# Version 0.2
 set -e
 
 TARGET_STATE="${1:-STOCK}"
