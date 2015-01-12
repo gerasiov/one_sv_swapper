@@ -197,6 +197,7 @@ case "$TARGET_STATE" in
 	D_I_MOD)	;;
 	I_E_MOD)	;;
 	D_I_E_MOD)	;;
+	READONLY)	;;
 	*)		echo "Fatal error: unknown target state."
 			exit 1
 			;;
@@ -250,6 +251,11 @@ elif [ "$BOOT_STATE" = "D_I_MOD" -a "$RECOVERY_STATE" = "D_I_MOD" -a "$SYSTEM_ST
 else
 	echo "Fatal error: Current state is unknown, nothing changed, aborting."
 	exit 1
+fi
+
+if [ "$TARGET_STATE" = "READONLY" ];then
+	echo "Readonly mode called, exiting successfully."
+	exit 0
 fi
 
 echo "Patching..."
