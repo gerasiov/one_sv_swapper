@@ -59,13 +59,13 @@ check_system(){
 		grep -q '^dev_mount sdcard /storage/sdcard0 emmc /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
 			grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
 			STATE="STOCK"
-		grep -q '^dev_mount sdcard /storage/sdcard0 35 /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
+		grep -q '^dev_mount sdcard /storage/sdcard0 '$EMMC_USERDATA' /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
 			grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
 			STATE="D_I_MOD"
 		grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd emmc /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
 			grep -q '^dev_mount sdcard /storage/sdcard0 auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
 			STATE="I_E_MOD"
-		grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd 35 /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
+		grep -q '^dev_mount sdcard2 /storage/sdcard0/ext_sd '$EMMC_USERDATA' /devices/platform/msm_sdcc.1/mmc_host$' /system/etc/vold.fstab && \
 			grep -q '^dev_mount sdcard /storage/sdcard0 auto /devices/platform/msm_sdcc.3/mmc_host$' /system/etc/vold.fstab && \
 			STATE="D_I_E_MOD"
 
@@ -104,17 +104,17 @@ patch_recovery(){
 patch_system(){
 	cp /system/etc/vold.fstab .
 	if [  "$TARGET_STATE" = "D_I_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" ];then
-		sed -i -e 's# emmc \(/devices/platform/msm_sdcc.1/mmc_host\)$# 35 \1#' vold.fstab
+		sed -i -e 's# emmc \(/devices/platform/msm_sdcc.1/mmc_host\)$# '$EMMC_USERDATA' \1#' vold.fstab
 	else
-		sed -i -e 's# 35 \(/devices/platform/msm_sdcc.1/mmc_host\)$# emmc \1#' vold.fstab
+		sed -i -e 's# '$EMMC_USERDATA' \(/devices/platform/msm_sdcc.1/mmc_host\)$# emmc \1#' vold.fstab
 	fi
 
 	if [  "$TARGET_STATE" = "I_E_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" ];then
-		sed -i -e 's#^\(dev_mount\) .* \(35\|emmc\) \(/devices/platform/msm_sdcc.1/mmc_host\)$#\1 sdcard2 /storage/sdcard0/ext_sd \2 \3#' \
+		sed -i -e 's#^\(dev_mount\) .* \('$EMMC_USERDATA'\|emmc\) \(/devices/platform/msm_sdcc.1/mmc_host\)$#\1 sdcard2 /storage/sdcard0/ext_sd \2 \3#' \
 			-e 's#^\(dev_mount\) .* \(auto /devices/platform/msm_sdcc.3/mmc_host\)$#\1 sdcard /storage/sdcard0 \2#' \
 			vold.fstab
 	else
-		sed -i -e 's#^\(dev_mount\) .* \(35\|emmc\) \(/devices/platform/msm_sdcc.1/mmc_host\)$#\1 sdcard /storage/sdcard0 \2 \3#' \
+		sed -i -e 's#^\(dev_mount\) .* \('$EMMC_USERDATA'\|emmc\) \(/devices/platform/msm_sdcc.1/mmc_host\)$#\1 sdcard /storage/sdcard0 \2 \3#' \
 			-e 's#^\(dev_mount\) .* \(auto /devices/platform/msm_sdcc.3/mmc_host\)$#\1 sdcard2 /storage/sdcard0/ext_sd \2#' \
 			vold.fstab
 	fi
