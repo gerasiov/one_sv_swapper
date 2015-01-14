@@ -2,7 +2,7 @@
 # HTC One SV partition swapper
 # (c) 2015 Alexander GQ Gerasiov <gq@cs.msu.su>
 # License GPL v2 or later.
-VERSION="0.4"
+VERSION="0.5"
 set -e
 
 print_header(){
