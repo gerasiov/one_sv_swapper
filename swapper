@@ -41,11 +41,11 @@ check_recovery(){
 	(
 		local STATE="UNKNOWN"
 		cd $1
-		grep -q '^[[:space:]]*/data[[:space:]]\+ext4[[:space:]]\+/dev/block/mmcblk0p'$EMMC_USERDATA'$' etc/recovery.fstab && \
-			grep -q '^[[:space:]]*/int_sd[[:space:]]\+vfat[[:space:]]\+/dev/block/mmcblk0p'$EMMC_FAT'$' etc/recovery.fstab && \
+		grep -q '^[[:space:]]*/data[[:space:]]\+ext4[[:space:]]\+/dev/block/mmcblk0p'$EMMC_USERDATA'\([[:space:]]flags=.*\)\?$' etc/recovery.fstab && \
+			grep -q '^[[:space:]]*/int_sd[[:space:]]\+vfat[[:space:]]\+/dev/block/mmcblk0p'$EMMC_FAT'\([[:space:]]flags=.*\)\?$' etc/recovery.fstab && \
 			STATE="STOCK"
-		grep -q '^[[:space:]]*/data[[:space:]]\+ext4[[:space:]]\+/dev/block/mmcblk0p'$EMMC_FAT'$' etc/recovery.fstab && \
-			grep -q '^[[:space:]]*/int_sd[[:space:]]\+vfat[[:space:]]\+/dev/block/mmcblk0p'$EMMC_USERDATA'$' etc/recovery.fstab && \
+		grep -q '^[[:space:]]*/data[[:space:]]\+ext4[[:space:]]\+/dev/block/mmcblk0p'$EMMC_FAT'\([[:space:]]flags=.*\)\?$' etc/recovery.fstab && \
+			grep -q '^[[:space:]]*/int_sd[[:space:]]\+vfat[[:space:]]\+/dev/block/mmcblk0p'$EMMC_USERDATA'\([[:space:]]flags=.*\)\?$' etc/recovery.fstab && \
 			STATE="D_I_MOD"
 		echo $STATE
 	)
@@ -97,12 +97,12 @@ patch_boot(){
 
 patch_recovery(){
 	if [  "$TARGET_STATE" = "STOCK" -o "$TARGET_STATE" = "I_E_MOD" ];then
-		sed -i -e 's#^\([[:space:]]*/data[[:space:]]\+ext4[[:space:]]\+/dev/block/mmcblk0p\).*$#\1'$EMMC_USERDATA'#' \
-			-e 's#^\([[:space:]]*/int_sd[[:space:]]\+vfat[[:space:]]\+/dev/block/mmcblk0p\).*$#\1'$EMMC_FAT'#' \
+		sed -i -e 's#^\([[:space:]]*/data[[:space:]]\+ext4[[:space:]]\+/dev/block/mmcblk0p\)[[:digit:]]*#\1'$EMMC_USERDATA'#' \
+			-e 's#^\([[:space:]]*/int_sd[[:space:]]\+vfat[[:space:]]\+/dev/block/mmcblk0p\)[[:digit:]]*#\1'$EMMC_FAT'#' \
 			recovery/initrd/etc/recovery.fstab
 	elif [ "$TARGET_STATE" = "D_I_MOD" -o "$TARGET_STATE" = "D_I_E_MOD" ];then
-		sed -i -e 's#^\([[:space:]]*/data[[:space:]]\+ext4[[:space:]]\+/dev/block/mmcblk0p\).*$#\1'$EMMC_FAT'#' \
-			-e 's#^\([[:space:]]*/int_sd[[:space:]]\+vfat[[:space:]]\+/dev/block/mmcblk0p\).*$#\1'$EMMC_USERDATA'#' \
+		sed -i -e 's#^\([[:space:]]*/data[[:space:]]\+ext4[[:space:]]\+/dev/block/mmcblk0p\)[[:digit:]]*#\1'$EMMC_FAT'#' \
+			-e 's#^\([[:space:]]*/int_sd[[:space:]]\+vfat[[:space:]]\+/dev/block/mmcblk0p\)[[:digit:]]*#\1'$EMMC_USERDATA'#' \
 			recovery/initrd/etc/recovery.fstab
 	fi
 }
