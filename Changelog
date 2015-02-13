@@ -1,3 +1,4 @@
+v 0.8 Support flags in recovery.fstab of k2_cl openrecovery TWRP.
 v 0.7 Link abootimg statically to fix possible issues with incompatible recovery builds.
 v 0.6 Fix error with openrecovery-twrp-2.7.1.0-k2_ul.img (And possibly 2.8.4.0)
 v 0.5 Fix fatal error from 0.4. Readonly mode by default.
